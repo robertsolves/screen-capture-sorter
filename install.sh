@@ -28,6 +28,7 @@ if [[ ! -f "$STATE/previous-location" ]]; then
   defaults read com.apple.screencapture location 2>/dev/null >"$STATE/previous-location" || : >"$STATE/previous-location"
   defaults read com.apple.screencapture target 2>/dev/null >"$STATE/previous-target" || : >"$STATE/previous-target"
 fi
+printf '%s\n' "$DIR" >"$STATE/dir"
 defaults write com.apple.screencapture location -string "$DIR"
 defaults write com.apple.screencapture target -string file
 killall SystemUIServer 2>/dev/null || true
