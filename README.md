@@ -63,6 +63,8 @@ waits for each new file in the capture folder to stop growing, then moves it int
 `YYYY-MM-DD/HH/` (24-hour, from the file's creation time), moves the `LATEST_` markers and
 copies it to the clipboard. A capture back-dated to an earlier day goes into that day's folder
 without taking the markers. Only folders named like a date or an hour are ever renamed.
+If the capture folder is deleted, moved or put in the Trash, the watcher recreates it at once
+so macOS always has somewhere to save the next capture.
 
 It is a compiled binary because macOS hides the Desktop from scripts launchd starts. Errors
 are logged to `~/.local/state/screen-capture-sorter/error.log`.

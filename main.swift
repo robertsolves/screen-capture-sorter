@@ -156,6 +156,10 @@ func scan() {
     do {
         files = try fm.contentsOfDirectory(at: root, includingPropertiesForKeys: Array(keys), options: [.skipsHiddenFiles])
     } catch {
+        if !fm.fileExists(atPath: root.path) {
+            watch()
+            return
+        }
         // Usually a missing Desktop access grant in Privacy & Security > Files & Folders.
         log("cannot read \(root.path): \(error)")
         return
@@ -195,15 +199,37 @@ func queueScan(after delay: TimeInterval) {
     DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: scan)
 }
 
-try? fm.createDirectory(at: root, withIntermediateDirectories: true)
-let fd = open(root.path, O_EVTONLY)
-guard fd >= 0 else {
-    log("cannot watch \(root.path): errno \(errno)")
-    exit(1)
+var source: DispatchSourceFileSystemObject?
+
+// (Re)creates <root> and watches it. When the folder is deleted, moved or put in the Trash,
+// macOS has nowhere to save captures, so it is recreated at once and watched afresh.
+func watch() {
+    source?.cancel()
+    source = nil
+    do {
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+    } catch {
+        log("cannot create \(root.path): \(error)")
+    }
+    let fd = open(root.path, O_EVTONLY)
+    guard fd >= 0 else {
+        log("cannot watch \(root.path): errno \(errno)")
+        exit(1)
+    }
+    let watcher = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .delete, .rename], queue: .main)
+    watcher.setEventHandler {
+        if watcher.data.contains(.delete) || watcher.data.contains(.rename) {
+            watch()
+        } else {
+            queueScan(after: 0)
+        }
+    }
+    watcher.setCancelHandler { close(fd) }
+    watcher.resume()
+    source = watcher
+    refreshLatest()
+    queueScan(after: 0)
 }
-let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: .write, queue: .main)
-source.setEventHandler { queueScan(after: 0) }
-source.resume()
-refreshLatest()
-queueScan(after: 0)
+
+watch()
 dispatchMain()
